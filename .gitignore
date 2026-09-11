@@ -1,0 +1,8 @@
+# state.json is deliberately NOT ignored - the workflow commits it between runs.
+watch.log
+__pycache__/
+*.tmp
+SA_ZO_latest.xlsx
+alert.txt
+body.md
+mock/

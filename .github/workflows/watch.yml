@@ -1,0 +1,70 @@
+name: zzzs-watch
+
+on:
+  schedule:
+    # 05:00 and 13:00 UTC = 07:00 and 15:00 Ljubljana in summer (06:00/14:00 winter).
+    # GitHub's scheduler is best-effort and can lag 5-30 min under load. Fine for
+    # a file ZZZS only refreshes once a day.
+    - cron: "0 5,13 * * *"
+  workflow_dispatch:        # manual "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write           # commit state.json back
+  issues: write             # open the alert issue
+
+concurrency:
+  group: zzzs-watch         # two overlapping runs would race on state.json
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check for new doctors
+        env:
+          # No SMTP needed: new doctors are written to alert.txt, and the next
+          # step turns that into a GitHub issue, which GitHub emails to you.
+          ALERT_FILE: alert.txt
+          IGNORE_URL: ${{ secrets.IGNORE_URL }}
+          CITIES: LJUBLJANA
+          # Optional extras — the job works fine with these secrets unset.
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: python watch.py
+
+      - name: Open an issue if anything is new
+        if: hashFiles('alert.txt') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # provided automatically
+        run: |
+          title=$(head -1 alert.txt)
+          tail -n +2 alert.txt > body.md
+          gh issue create --title "$title" --body-file body.md
+
+      - name: Persist state
+        # Runs even if the step above failed, so a partial state still saves.
+        if: always()
+        run: |
+          if [[ -z "$(git status --porcelain state.json)" ]]; then
+            echo "No state change."
+            exit 0
+          fi
+          git config user.name  "zzzs-watch"
+          git config user.email "actions@github.com"
+          git add state.json
+          git commit -m "state: $(date -u +%Y-%m-%dT%H:%MZ)"
+          # A manual run may have pushed while this one worked.
+          git pull --rebase --autostash || true
+          git push
