@@ -429,22 +429,28 @@ def main():
 
         ignored = set() if args.all else load_ignore()
         skipped = [h for h in hits if name_key(h["doctor"]) in ignored]
-        hits = [h for h in hits if name_key(h["doctor"]) not in ignored]
-        hits.sort(key=lambda h: (h["patients"] is None, h["patients"]))
+        visible = [h for h in hits if name_key(h["doctor"]) not in ignored]
+        visible.sort(key=lambda h: (h["patients"] is None, h["patients"]))
 
         if args.list:
-            print(f"ZZZS data dated {data_date} — {len(hits)} accepting"
+            print(f"ZZZS data dated {data_date} — {len(visible)} accepting"
                   f"{f', {len(skipped)} ignored' if skipped else ''}\n")
-            for h in hits:
+            for h in visible:
                 print(fmt(h), "\n")
             return 0
 
         state = load_state()
         previous = set(state["accepting"]) if state else set()
         first_run = state is None
-        new = [h for h in hits if h["key"] not in previous]
+        # Diff against EVERY currently-accepting doctor, ignored or not, so
+        # state remembers who's already been seen regardless of ignore status.
+        # Filtering by "ignored" first would mean un-ignoring someone (or a
+        # transient ignore-list fetch failure) makes them look "new" again
+        # even though they've been accepting the whole time.
+        new = [h for h in hits if h["key"] not in previous
+               and name_key(h["doctor"]) not in ignored]
 
-        print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | matching {len(hits)} "
+        print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | matching {len(visible)} "
               f"| new {len(new)} | ignored {len(skipped)}"
               + ("  (first run)" if first_run else ""))
 
@@ -455,13 +461,13 @@ def main():
             body += f"\n\nZZZS data dated {data_date}. Phone before you travel."
         elif first_run:
             title = "zzzs-watch: first run — baseline recorded"
-            body = (f"Recorded {len(hits)} doctor(s) currently accepting as the "
+            body = (f"Recorded {len(visible)} doctor(s) currently accepting as the "
                     f"starting point ({len(skipped)} already on your ignore list). "
                     "You'll hear about anything new from the next run.\n\n"
                     f"ZZZS data dated {data_date}.")
         else:
             title = "zzzs-watch: no new doctors today"
-            body = (f"{len(hits)} matching doctor(s), none new since yesterday "
+            body = (f"{len(visible)} matching doctor(s), none new since yesterday "
                     f"({len(skipped)} on your ignore list).\n\n"
                     f"ZZZS data dated {data_date}.")
         notify(title, body + stale_note)
