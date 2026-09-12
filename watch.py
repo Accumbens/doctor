@@ -462,13 +462,15 @@ def main():
         elif first_run:
             title = "zzzs-watch: first run — baseline recorded"
             body = (f"Recorded {len(visible)} doctor(s) currently accepting as the "
-                    f"starting point ({len(skipped)} already on your ignore list). "
+                    f"starting point ({len(skipped)} more matched but are already on "
+                    "your ignore list, so weren't counted above). "
                     "You'll hear about anything new from the next run.\n\n"
                     f"ZZZS data dated {data_date}.")
         else:
             title = "zzzs-watch: no new doctors today"
-            body = (f"{len(visible)} matching doctor(s), none new since yesterday "
-                    f"({len(skipped)} on your ignore list).\n\n"
+            body = (f"{len(visible)} doctor(s) accepting, none new since yesterday "
+                    f"({len(skipped)} more matched but are on your ignore list, so "
+                    "aren't counted above).\n\n"
                     f"ZZZS data dated {data_date}.")
         notify(title, body + stale_note)
 
