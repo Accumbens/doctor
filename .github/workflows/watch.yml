@@ -31,8 +31,9 @@ jobs:
 
       - name: Check for new doctors
         env:
-          # No SMTP needed: new doctors are written to alert.txt, and the next
-          # step turns that into a GitHub issue, which GitHub emails to you.
+          # No SMTP needed: the result (new doctors, nothing new, or an error)
+          # is always written to alert.txt, and the next step always turns
+          # that into a GitHub issue, which GitHub emails to you daily.
           ALERT_FILE: alert.txt
           IGNORE_URL: ${{ secrets.IGNORE_URL }}
           CITIES: LJUBLJANA
@@ -44,8 +45,10 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: python watch.py
 
-      - name: Open an issue if anything is new
-        if: hashFiles('alert.txt') != ''
+      - name: Open today's issue (new doctors, none, or an error)
+        # always(): watch.py exits non-zero on a genuine problem, but it still
+        # writes alert.txt describing it first — that case must still email.
+        if: always() && hashFiles('alert.txt') != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # provided automatically
         run: |

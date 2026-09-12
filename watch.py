@@ -413,43 +413,68 @@ def main():
         print(f"parsed OK: data dated {d}, {len(h)} matching doctors")
         return 0
 
-    path = args.file or download("SA_ZO_latest.xlsx")
-    data_date, hits = parse(path)
+    # Everything below is the daily run. It always sends exactly one
+    # notification — new doctors, "nothing new", or "something broke" — so a
+    # missing email is never ambiguous between "quiet day" and "silently dead".
+    try:
+        path = args.file or download("SA_ZO_latest.xlsx")
+        data_date, hits = parse(path)
 
-    if data_date and state_is_stale(data_date):
-        print(f"warn: ZZZS data still dated {data_date} — feed may be frozen",
-              file=sys.stderr)
+        stale_note = ""
+        if data_date and state_is_stale(data_date):
+            stale_note = (f"\n\nWarning: ZZZS data is still dated {data_date} "
+                          "— the feed may be frozen upstream.")
+            print(f"warn: ZZZS data still dated {data_date} — feed may be frozen",
+                  file=sys.stderr)
 
-    ignored = set() if args.all else load_ignore()
-    skipped = [h for h in hits if name_key(h["doctor"]) in ignored]
-    hits = [h for h in hits if name_key(h["doctor"]) not in ignored]
-    hits.sort(key=lambda h: (h["patients"] is None, h["patients"]))
+        ignored = set() if args.all else load_ignore()
+        skipped = [h for h in hits if name_key(h["doctor"]) in ignored]
+        hits = [h for h in hits if name_key(h["doctor"]) not in ignored]
+        hits.sort(key=lambda h: (h["patients"] is None, h["patients"]))
 
-    if args.list:
-        print(f"ZZZS data dated {data_date} — {len(hits)} accepting"
-              f"{f', {len(skipped)} ignored' if skipped else ''}\n")
-        for h in hits:
-            print(fmt(h), "\n")
+        if args.list:
+            print(f"ZZZS data dated {data_date} — {len(hits)} accepting"
+                  f"{f', {len(skipped)} ignored' if skipped else ''}\n")
+            for h in hits:
+                print(fmt(h), "\n")
+            return 0
+
+        state = load_state()
+        previous = set(state["accepting"]) if state else set()
+        first_run = state is None
+        new = [h for h in hits if h["key"] not in previous]
+
+        print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | matching {len(hits)} "
+              f"| new {len(new)} | ignored {len(skipped)}"
+              + ("  (first run)" if first_run else ""))
+
+        if new and (not first_run or args.alert_on_first_run):
+            title = (f"{len(new)} new doctor(s) accepting near Ljubljana"
+                     if len(new) > 1 else f"{new[0]['doctor']} is accepting")
+            body = "\n\n".join(fmt(h) for h in new)
+            body += f"\n\nZZZS data dated {data_date}. Phone before you travel."
+        elif first_run:
+            title = "zzzs-watch: first run — baseline recorded"
+            body = (f"Recorded {len(hits)} doctor(s) currently accepting as the "
+                    f"starting point ({len(skipped)} already on your ignore list). "
+                    "You'll hear about anything new from the next run.\n\n"
+                    f"ZZZS data dated {data_date}.")
+        else:
+            title = "zzzs-watch: no new doctors today"
+            body = (f"{len(hits)} matching doctor(s), none new since yesterday "
+                    f"({len(skipped)} on your ignore list).\n\n"
+                    f"ZZZS data dated {data_date}.")
+        notify(title, body + stale_note)
+
+        save_state([h["key"] for h in hits], data_date)
         return 0
 
-    state = load_state()
-    previous = set(state["accepting"]) if state else set()
-    first_run = state is None
-    new = [h for h in hits if h["key"] not in previous]
-
-    print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | matching {len(hits)} "
-          f"| new {len(new)} | ignored {len(skipped)}"
-          + ("  (first run)" if first_run else ""))
-
-    if new and (not first_run or args.alert_on_first_run):
-        title = (f"{len(new)} new doctor(s) accepting near Ljubljana"
-                 if len(new) > 1 else f"{new[0]['doctor']} is accepting")
-        body = "\n\n".join(fmt(h) for h in new)
-        body += f"\n\nZZZS data dated {data_date}. Phone before you travel."
-        notify(title, body)
-
-    save_state([h["key"] for h in hits], data_date)
-    return 0
+    except Exception as e:
+        print(f"error: {type(e).__name__}: {e}", file=sys.stderr)
+        notify("zzzs-watch: problem running today's check",
+               f"Today's check failed before it could finish, so treat this as "
+               f"'unknown' rather than 'nothing new':\n\n{type(e).__name__}: {e}")
+        return 1
 
 
 if __name__ == "__main__":
