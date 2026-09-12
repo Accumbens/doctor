@@ -287,17 +287,6 @@ def state_is_stale(data_date, max_days=4):
     return (datetime.now() - d).days > max_days
 
 
-def load_state():
-    if not os.path.exists(STATE_FILE):
-        return None
-    try:
-        with open(STATE_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"warn: unreadable {STATE_FILE} ({e}); treating as first run", file=sys.stderr)
-        return None
-
-
 def save_state(keys, data_date):
     tmp = STATE_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -395,7 +384,6 @@ def main():
     ap.add_argument("--file", help="parse a local xlsx instead of downloading")
     ap.add_argument("--list", action="store_true", help="print current matches, keep state")
     ap.add_argument("--all", action="store_true", help="don't apply the ignore list")
-    ap.add_argument("--alert-on-first-run", action="store_true")
     ap.add_argument("--test-notify", action="store_true",
                     help="send a test message through every configured channel")
     ap.add_argument("--check-fetch", action="store_true",
@@ -414,8 +402,12 @@ def main():
         return 0
 
     # Everything below is the daily run. It always sends exactly one
-    # notification — new doctors, "nothing new", or "something broke" — so a
-    # missing email is never ambiguous between "quiet day" and "silently dead".
+    # notification — the current list, "nobody accepting", or "something
+    # broke" — so a missing email is never ambiguous between "quiet day" and
+    # "silently dead". There is deliberately no new-vs-already-seen diffing:
+    # every run reports everyone currently accepting and not ignored, even if
+    # they were accepting yesterday too. Ignore a doctor once you've called
+    # and been told no, and they stop showing up for good.
     try:
         path = args.file or download("SA_ZO_latest.xlsx")
         data_date, hits = parse(path)
@@ -439,42 +431,22 @@ def main():
                 print(fmt(h), "\n")
             return 0
 
-        state = load_state()
-        previous = set(state["accepting"]) if state else set()
-        first_run = state is None
-        # Diff against EVERY currently-accepting doctor, ignored or not, so
-        # state remembers who's already been seen regardless of ignore status.
-        # Filtering by "ignored" first would mean un-ignoring someone (or a
-        # transient ignore-list fetch failure) makes them look "new" again
-        # even though they've been accepting the whole time.
-        new = [h for h in hits if h["key"] not in previous
-               and name_key(h["doctor"]) not in ignored]
+        print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | accepting {len(visible)} "
+              f"| ignored {len(skipped)}")
 
-        print(f"[{datetime.now():%Y-%m-%d %H:%M}] data {data_date} | matching {len(visible)} "
-              f"| new {len(new)} | ignored {len(skipped)}"
-              + ("  (first run)" if first_run else ""))
-
-        if new and (not first_run or args.alert_on_first_run):
-            title = (f"{len(new)} new doctor(s) accepting near Ljubljana"
-                     if len(new) > 1 else f"{new[0]['doctor']} is accepting")
-            body = "\n\n".join(fmt(h) for h in new)
+        if visible:
+            title = (f"{len(visible)} doctor(s) accepting near Ljubljana"
+                     if len(visible) > 1 else f"{visible[0]['doctor']} is accepting")
+            body = "\n\n".join(fmt(h) for h in visible)
             body += f"\n\nZZZS data dated {data_date}. Phone before you travel."
-        elif first_run:
-            title = "zzzs-watch: first run — baseline recorded"
-            body = (f"Recorded {len(visible)} doctor(s) currently accepting as the "
-                    f"starting point ({len(skipped)} more matched but are already on "
-                    "your ignore list, so weren't counted above). "
-                    "You'll hear about anything new from the next run.\n\n"
-                    f"ZZZS data dated {data_date}.")
         else:
-            title = "zzzs-watch: no new doctors today"
-            body = (f"{len(visible)} doctor(s) accepting, none new since yesterday "
-                    f"({len(skipped)} more matched but are on your ignore list, so "
-                    "aren't counted above).\n\n"
+            title = "zzzs-watch: no doctors accepting right now"
+            body = (f"None of the matching doctors are accepting patients right now "
+                    f"({len(skipped)} more matched but are on your ignore list).\n\n"
                     f"ZZZS data dated {data_date}.")
         notify(title, body + stale_note)
 
-        save_state([h["key"] for h in hits], data_date)
+        save_state([h["key"] for h in visible], data_date)
         return 0
 
     except Exception as e:

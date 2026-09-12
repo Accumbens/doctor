@@ -1,8 +1,10 @@
 # zzzs-watch
 
 Daily check of the official ZZZS spreadsheet for personal doctors accepting new
-patients around Ljubljana. Alerts only on doctors that are **new since last run**
-and not on your ignore list.
+patients around Ljubljana. **Every run** alerts with the full current list of
+accepting doctors, minus your ignore list — not just what changed since last
+time. Call one, get told no, add them to the ignore list, and they stop
+showing up for good.
 
 ```bash
 pip install openpyxl
@@ -13,8 +15,8 @@ python watch.py                           # the real daily run
 python watch.py --all                     # ignore the ignore list
 ```
 
-First real run records a silent baseline so you don't get the whole backlog.
-Delete `state.json` to reset.
+`state.json` is just a record of the last run (what was seen, when) — it's
+not consulted to decide what to alert on, so there's no baseline to reset.
 
 ## Ignore list
 
@@ -110,7 +112,7 @@ Put your `NTFY_TOPIC` in `run.sh` — cron inherits almost no environment, which
 is the usual reason a job works by hand and silently stops alerting under cron.
 
 A stale-feed guard warns if the published data date is more than 4 days old, so
-a frozen upstream shows up instead of looking like "no new doctors".
+a frozen upstream shows up instead of looking like "nobody accepting".
 
 ## How the file is located
 

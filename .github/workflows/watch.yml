@@ -32,11 +32,11 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Check for new doctors
+      - name: Check who's accepting
         env:
-          # No SMTP needed: the result (new doctors, nothing new, or an error)
-          # is always written to alert.txt, and the next step always turns
-          # that into a GitHub issue, which GitHub emails to you daily.
+          # No SMTP needed: the result (current list, nobody accepting, or an
+          # error) is always written to alert.txt, and the next step always
+          # turns that into a GitHub issue, which GitHub emails to you.
           ALERT_FILE: alert.txt
           IGNORE_URL: ${{ secrets.IGNORE_URL }}
           CITIES: LJUBLJANA
@@ -48,7 +48,7 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: python watch.py
 
-      - name: Open today's issue (new doctors, none, or an error)
+      - name: Open today's issue (current list, none accepting, or an error)
         # always(): watch.py exits non-zero on a genuine problem, but it still
         # writes alert.txt describing it first — that case must still email.
         if: always() && hashFiles('alert.txt') != ''
