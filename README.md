@@ -66,8 +66,9 @@ python watch.py --test-notify
 ## Running it with your computer off
 
 Push this to a **private** GitHub repo. `.github/workflows/watch.yml` then runs
-it on GitHub's machines at 03:00 and 13:00 UTC (05:00 and 15:00 Ljubljana in
-summer, 04:00/14:00 winter), with nothing of yours switched on.
+it on GitHub's machines at 22:00, 03:00 and 13:00 UTC (midnight, 05:00 and
+15:00 Ljubljana in summer, 23:00/04:00/14:00 winter), with nothing of yours
+switched on.
 
 Add these under Settings → Secrets and variables → Actions:
 
@@ -89,8 +90,8 @@ than waiting for the schedule.
 `state.json` is committed back to the repo after each run — that's how the job
 remembers what it already told you about. It must stay out of `.gitignore`.
 
-Private repos get 2,000 free Actions minutes a month; two runs a day uses well
-under 100. GitHub's cron is best-effort and can lag 5-30 minutes, which is
+Private repos get 2,000 free Actions minutes a month; three runs a day uses
+well under 100. GitHub's cron is best-effort and can lag 5-30 minutes, which is
 irrelevant for a file that changes once a day. GitHub also disables schedules on
 repos with no activity for 60 days — it emails you first, and any commit or a
 manual run resets the clock.
@@ -99,10 +100,10 @@ manual run resets the clock.
 
 ZZZS refreshes this file about once a day, overnight on business days only
 (it's still Friday's file on Saturday evening), so once or twice daily is
-plenty. Times below are local (Ljubljana):
+plenty — three below is already generous. Times are local (Ljubljana):
 
 ```cron
-0 5,15 * * * /path/to/zzzs-watch/run.sh
+0 0,5,15 * * * /path/to/zzzs-watch/run.sh
 ```
 
 Put your `NTFY_TOPIC` in `run.sh` — cron inherits almost no environment, which
