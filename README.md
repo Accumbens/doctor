@@ -66,7 +66,8 @@ python watch.py --test-notify
 ## Running it with your computer off
 
 Push this to a **private** GitHub repo. `.github/workflows/watch.yml` then runs
-it on GitHub's machines at 05:00 and 13:00 UTC, with nothing of yours switched on.
+it on GitHub's machines at 03:00 and 13:00 UTC (05:00 and 15:00 Ljubljana in
+summer, 04:00/14:00 winter), with nothing of yours switched on.
 
 Add these under Settings → Secrets and variables → Actions:
 
@@ -96,10 +97,12 @@ manual run resets the clock.
 
 ## Schedule (only if running on your own machine)
 
-ZZZS refreshes this file about once a day, so once or twice daily is plenty.
+ZZZS refreshes this file about once a day, overnight on business days only
+(it's still Friday's file on Saturday evening), so once or twice daily is
+plenty. Times below are local (Ljubljana):
 
 ```cron
-0 7,15 * * * /path/to/zzzs-watch/run.sh
+0 5,15 * * * /path/to/zzzs-watch/run.sh
 ```
 
 Put your `NTFY_TOPIC` in `run.sh` — cron inherits almost no environment, which

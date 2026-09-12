@@ -2,10 +2,13 @@ name: zzzs-watch
 
 on:
   schedule:
-    # 05:00 and 13:00 UTC = 07:00 and 15:00 Ljubljana in summer (06:00/14:00 winter).
+    # 03:00 and 13:00 UTC = 05:00 and 15:00 Ljubljana in summer (04:00/14:00 winter).
+    # ZZZS republishes overnight on business days (confirmed: still Friday's file
+    # Saturday evening, so weekends are dead). 5am local aims right after the
+    # overnight publish window instead of the old 7am, so alerts land sooner.
     # GitHub's scheduler is best-effort and can lag 5-30 min under load. Fine for
     # a file ZZZS only refreshes once a day.
-    - cron: "0 5,13 * * *"
+    - cron: "0 3,13 * * *"
   workflow_dispatch:        # manual "Run workflow" button in the Actions tab
 
 permissions:
