@@ -2,16 +2,21 @@ name: zzzs-watch
 
 on:
   schedule:
-    # 22:07, 03:07 and 13:07 UTC ~= midnight, 05:00 and 15:00 Ljubljana in summer
-    # (23:00/04:00/14:00 winter). ZZZS republishes overnight on business days
-    # (confirmed: still Friday's file Saturday evening, so weekends are dead) —
-    # the midnight run is an early catch in case that happens before 5am.
-    # GitHub's scheduler is best-effort and runs on-the-hour (:00) are the most
-    # likely to be delayed or silently dropped under load, since that's when
-    # every other repo's cron fires too — a 22:00/03:00/13:00 run got skipped
-    # entirely on 2026-09-12. Offset by 7 minutes to dodge that contention.
-    - cron: "7 22,3,13 * * *"
-  workflow_dispatch:        # manual "Run workflow" button in the Actions tab
+    # Targets: 22:07, 03:07 and 13:07 UTC ~= midnight, 05:00 and 15:00 Ljubljana
+    # in summer (23:00/04:00/14:00 winter). ZZZS republishes overnight on
+    # business days (confirmed: still Friday's file Saturday evening, so
+    # weekends are dead) — the midnight run is an early catch in case that
+    # happens before 5am.
+    #
+    # GitHub's `schedule` trigger is best-effort and has been observed to
+    # silently drop a firing entirely, not just delay it (2026-09-12 22:00 run,
+    # and the 2026-09-13 03:07 run, both never happened at all). So each target
+    # gets 4 retries at +15/+30/+45/+60 min. should_run.py makes retries a
+    # no-op once one attempt for the slot has already succeeded, so this still
+    # sends at most one email per slot — see that file for details.
+    - cron: "7,22,37,52 22,3,13 * * *"   # target, +15, +30, +45
+    - cron: "7 23,4,14 * * *"           # +60
+  workflow_dispatch:        # manual "Run workflow" button in the Actions tab — always runs for real
 
 permissions:
   contents: write           # commit state.json back
@@ -32,9 +37,17 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - name: Has this slot already succeeded?
+        id: slot
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: echo "should_run=$(python should_run.py)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.slot.outputs.should_run == 'run'
+        run: pip install -r requirements.txt
 
       - name: Check who's accepting
+        if: steps.slot.outputs.should_run == 'run'
         env:
           # No SMTP needed: the result (current list, nobody accepting, or an
           # error) is always written to alert.txt, and the next step always
