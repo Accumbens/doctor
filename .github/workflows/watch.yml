@@ -16,7 +16,12 @@ on:
     # sends at most one email per slot — see that file for details.
     - cron: "7,22,37,52 22,3,13 * * *"   # target, +15, +30, +45
     - cron: "7 23,4,14 * * *"           # +60
-  workflow_dispatch:        # manual "Run workflow" button in the Actions tab — always runs for real
+  workflow_dispatch:        # manual button, or an external cron hitting the dispatches API
+    inputs:
+      force:
+        description: "Force run even if this slot already succeeded"
+        type: boolean
+        default: true       # UI button keeps old "always run" behavior by default
 
 permissions:
   contents: write           # commit state.json back
@@ -41,6 +46,7 @@ jobs:
         id: slot
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          FORCE: ${{ github.event.inputs.force }}
         run: echo "should_run=$(python should_run.py)" >> "$GITHUB_OUTPUT"
 
       - if: steps.slot.outputs.should_run == 'run'

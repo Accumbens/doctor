@@ -12,7 +12,11 @@ The current slot is the most recent target time at or before now. If
 state.json's checked_at is already at or after that slot's start, this slot
 has already been handled and the run should be skipped.
 
-workflow_dispatch (manual runs) always run, regardless of slot state.
+workflow_dispatch runs are subject to the same slot dedup UNLESS the "force"
+input is true — so an external cron hitting the dispatches API can poll
+often (as a backup for dropped schedule firings) without causing duplicate
+emails, while the manual "Run workflow" button in the UI defaults force=true
+for quick testing.
 """
 
 import datetime
@@ -52,8 +56,14 @@ def already_done(slot_start):
 
 
 def main():
-    if os.environ.get("GITHUB_EVENT_NAME", "schedule") != "schedule":
-        print("run")  # manual dispatch always runs
+    event = os.environ.get("GITHUB_EVENT_NAME", "schedule")
+    force = os.environ.get("FORCE", "").lower() == "true"
+
+    if event not in ("schedule", "workflow_dispatch"):
+        print("run")
+        return
+    if event == "workflow_dispatch" and force:
+        print("run")
         return
 
     now = datetime.datetime.now(datetime.timezone.utc)
